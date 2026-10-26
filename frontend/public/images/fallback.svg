@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 720" role="img" aria-label="Imagem indisponível">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFF8E8"/>
+      <stop offset="1" stop-color="#F3E3BC"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="720" fill="url(#bg)"/>
+  <g transform="translate(480 350)">
+    <path d="M-150 120 C -110 10, -60 -40, 0 -60 C -50 0, -80 60, -95 140 Z" fill="#7FA35B"/>
+    <path d="M150 120 C 110 10, 60 -40, 0 -60 C 50 0, 80 60, 95 140 Z" fill="#5E8A43"/>
+    <ellipse cx="0" cy="-20" rx="62" ry="150" fill="#F5C542"/>
+    <g fill="#E2AC22">
+      <circle cx="-25" cy="-120" r="12"/><circle cx="5" cy="-128" r="12"/><circle cx="32" cy="-115" r="11"/>
+      <circle cx="-35" cy="-80" r="13"/><circle cx="-3" cy="-88" r="13"/><circle cx="30" cy="-78" r="13"/>
+      <circle cx="-38" cy="-38" r="13"/><circle cx="-5" cy="-45" r="13"/><circle cx="30" cy="-36" r="13"/>
+      <circle cx="-36" cy="4" r="13"/><circle cx="-4" cy="-2" r="13"/><circle cx="30" cy="6" r="13"/>
+      <circle cx="-30" cy="46" r="12"/><circle cx="0" cy="40" r="12"/><circle cx="27" cy="48" r="12"/>
+    </g>
+    <path d="M-110 140 C -60 60, -20 40, 0 30 C 20 40, 60 60, 110 140 Z" fill="#426B35"/>
+  </g>
+</svg>

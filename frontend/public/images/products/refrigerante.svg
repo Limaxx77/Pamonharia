@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 720" role="img" aria-label="Ilustração: latas de refrigerante com gelo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFF8E8"/>
+      <stop offset="1" stop-color="#F6E6C0"/>
+    </linearGradient>
+    <linearGradient id="canA" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2F5226"/><stop offset=".45" stop-color="#5B8A47"/><stop offset="1" stop-color="#2F5226"/>
+    </linearGradient>
+    <linearGradient id="canB" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#B8871A"/><stop offset=".45" stop-color="#F5C542"/><stop offset="1" stop-color="#B8871A"/>
+    </linearGradient>
+    <linearGradient id="canC" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5A381B"/><stop offset=".45" stop-color="#9A6A3E"/><stop offset="1" stop-color="#5A381B"/>
+    </linearGradient>
+    <linearGradient id="top" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#9AA0A6"/><stop offset=".5" stop-color="#E8EAED"/><stop offset="1" stop-color="#9AA0A6"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="720" fill="url(#bg)"/>
+  <ellipse cx="480" cy="610" rx="340" ry="36" fill="#754C29" opacity=".16"/>
+  <g>
+    <rect x="200" y="250" width="170" height="340" rx="24" fill="url(#canA)"/>
+    <rect x="212" y="232" width="146" height="30" rx="12" fill="url(#top)"/>
+    <rect x="200" y="380" width="170" height="70" fill="#FFF8E8" opacity=".9"/>
+    <circle cx="285" cy="415" r="22" fill="#F5C542"/>
+  </g>
+  <g>
+    <rect x="395" y="200" width="170" height="390" rx="24" fill="url(#canB)"/>
+    <rect x="407" y="182" width="146" height="30" rx="12" fill="url(#top)"/>
+    <rect x="395" y="350" width="170" height="70" fill="#426B35" opacity=".92"/>
+    <circle cx="480" cy="385" r="22" fill="#FFF8E8"/>
+  </g>
+  <g>
+    <rect x="590" y="250" width="170" height="340" rx="24" fill="url(#canC)"/>
+    <rect x="602" y="232" width="146" height="30" rx="12" fill="url(#top)"/>
+    <rect x="590" y="380" width="170" height="70" fill="#F5C542" opacity=".95"/>
+    <circle cx="675" cy="415" r="22" fill="#754C29"/>
+  </g>
+  <!-- gelo e gotas -->
+  <g fill="#FFFFFF" opacity=".75">
+    <rect x="150" y="555" width="60" height="50" rx="10" transform="rotate(-12 180 580)"/>
+    <rect x="760" y="560" width="55" height="45" rx="10" transform="rotate(14 787 582)"/>
+    <circle cx="250" cy="300" r="6"/><circle cx="455" cy="270" r="7"/><circle cx="520" cy="470" r="5"/><circle cx="700" cy="320" r="6"/>
+  </g>
+  <text x="935" y="700" text-anchor="end" font-family="system-ui, sans-serif" font-size="22" fill="#754C29" opacity=".55">Ilustração</text>
+</svg>

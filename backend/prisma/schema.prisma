@@ -1,0 +1,384 @@
+// Modelo de dados da Pamonharia.
+// Valores monetários são armazenados em centavos (Int) para evitar erros de ponto flutuante.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Usuários e perfis
+// ---------------------------------------------------------------------------
+
+/// Perfis de acesso (tabela "roles" do enunciado, modelada como enum do PostgreSQL)
+enum Role {
+  ADMIN
+  WAITER
+  KITCHEN
+  CASHIER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role
+  active       Boolean  @default(true)
+  /// Incrementado para invalidar todas as sessões (logout forçado, troca de senha, desativação)
+  tokenVersion Int      @default(0) @map("token_version")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  openedSessions TabSession[] @relation("SessionOpenedBy")
+  closedSessions TabSession[] @relation("SessionClosedBy")
+  waiterSessions TabSession[] @relation("SessionWaiter")
+  orders         Order[]      @relation("OrderCreatedBy")
+  cancelledOrders Order[]     @relation("OrderCancelledBy")
+  payments       Payment[]    @relation("PaymentCreatedBy")
+  voidedPayments Payment[]    @relation("PaymentVoidedBy")
+  auditLogs      AuditLog[]
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Mesas, comandas, cartões NFC e atendimentos
+// ---------------------------------------------------------------------------
+
+model DiningTable {
+  id        String   @id @default(cuid())
+  number    Int      @unique
+  label     String?
+  seats     Int      @default(4)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  sessions TabSession[]
+
+  @@map("tables")
+}
+
+/// Comanda física/numerada (ex.: 025). Pode ter vários cartões NFC ao longo do tempo
+/// e vários atendimentos (sessões), mas no máximo UMA sessão aberta por vez.
+model Tab {
+  id        String   @id @default(cuid())
+  number    Int      @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  cards    NfcCard[]
+  sessions TabSession[]
+
+  @@map("tabs")
+}
+
+enum CardStatus {
+  ACTIVE
+  BLOCKED
+  LOST
+  REVOKED
+}
+
+/// Cartão NFC. O "token" aleatório é gravado na URL do cartão e funciona como credencial.
+/// Reemitir um cartão = revogar o token antigo e gerar um novo.
+model NfcCard {
+  id            String     @id @default(cuid())
+  tabId         String     @map("tab_id")
+  token         String     @unique
+  status        CardStatus @default(ACTIVE)
+  label         String?
+  statusReason  String?    @map("status_reason")
+  issuedAt      DateTime   @default(now()) @map("issued_at")
+  statusChangedAt DateTime? @map("status_changed_at")
+  lastUsedAt    DateTime?  @map("last_used_at")
+
+  tab Tab @relation(fields: [tabId], references: [id])
+
+  @@index([tabId])
+  @@map("nfc_cards")
+}
+
+enum SessionStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+/// Atendimento: período entre a abertura e o fechamento de uma comanda.
+/// Todo pedido (NFC ou garçom) pertence a uma sessão. Ao reutilizar o cartão,
+/// uma nova sessão é criada e o histórico anterior é preservado.
+model TabSession {
+  id                String        @id @default(cuid())
+  tabId             String        @map("tab_id")
+  tableId           String?       @map("table_id")
+  status            SessionStatus @default(OPEN)
+  customerName      String?       @map("customer_name")
+  waiterId          String?       @map("waiter_id")
+  openedById        String?       @map("opened_by_id")
+  closedById        String?       @map("closed_by_id")
+  openedVia         String        @default("STAFF") @map("opened_via") // STAFF | NFC
+  discountCents     Int           @default(0) @map("discount_cents")
+  discountReason    String?       @map("discount_reason")
+  serviceFeePercent Decimal       @default(10) @map("service_fee_percent") @db.Decimal(5, 2)
+  /// Cliente ou garçom pediu a conta (mesa passa a "Aguardando pagamento")
+  billRequestedAt   DateTime?     @map("bill_requested_at")
+  openedAt          DateTime      @default(now()) @map("opened_at")
+  closedAt          DateTime?     @map("closed_at")
+  reopenedAt        DateTime?     @map("reopened_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  tab      Tab          @relation(fields: [tabId], references: [id])
+  table    DiningTable? @relation(fields: [tableId], references: [id])
+  waiter   User?        @relation("SessionWaiter", fields: [waiterId], references: [id])
+  openedBy User?        @relation("SessionOpenedBy", fields: [openedById], references: [id])
+  closedBy User?        @relation("SessionClosedBy", fields: [closedById], references: [id])
+  orders   Order[]
+  payments Payment[]
+
+  @@index([tabId, status])
+  @@index([tableId, status])
+  @@index([openedAt])
+  @@map("tab_sessions")
+}
+
+// ---------------------------------------------------------------------------
+// Cardápio
+// ---------------------------------------------------------------------------
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  imageUrl    String?  @map("image_url")
+  sortOrder   Int      @default(0) @map("sort_order")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id              String   @id @default(cuid())
+  categoryId      String   @map("category_id")
+  name            String
+  description     String   @default("")
+  ingredients     String   @default("")
+  priceCents      Int      @map("price_cents")
+  /// Preço promocional (opcional). Quando definido, é o preço praticado.
+  promoPriceCents Int?     @map("promo_price_cents")
+  imageUrl        String?  @map("image_url")
+  available       Boolean  @default(true)
+  active          Boolean  @default(true)
+  featured        Boolean  @default(false)
+  prepMinutes     Int      @default(10) @map("prep_minutes")
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  category   Category       @relation(fields: [categoryId], references: [id])
+  addons     ProductAddon[]
+  orderItems OrderItem[]
+
+  @@index([categoryId])
+  @@map("products")
+}
+
+model ProductAddon {
+  id         String  @id @default(cuid())
+  productId  String  @map("product_id")
+  name       String
+  priceCents Int     @map("price_cents")
+  active     Boolean @default(true)
+  sortOrder  Int     @default(0) @map("sort_order")
+
+  product    Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  itemAddons OrderItemAddon[]
+
+  @@index([productId])
+  @@map("product_addons")
+}
+
+// ---------------------------------------------------------------------------
+// Pedidos
+// ---------------------------------------------------------------------------
+
+enum OrderSource {
+  NFC
+  WAITER
+}
+
+enum OrderStatus {
+  RECEIVED
+  PREPARING
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  number          Int         @unique @default(autoincrement())
+  sessionId       String      @map("session_id")
+  source          OrderSource
+  status          OrderStatus @default(RECEIVED)
+  note            String?
+  /// Chave enviada pelo cliente para impedir pedidos duplicados (cliques repetidos / reenvio)
+  idempotencyKey  String      @unique @map("idempotency_key")
+  createdById     String?     @map("created_by_id")
+  totalCents      Int         @map("total_cents")
+  statusChangedAt DateTime    @default(now()) @map("status_changed_at")
+  cancelReason    String?     @map("cancel_reason")
+  cancelledById   String?     @map("cancelled_by_id")
+  cancelledAt     DateTime?   @map("cancelled_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  session     TabSession  @relation(fields: [sessionId], references: [id])
+  createdBy   User?       @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  cancelledBy User?       @relation("OrderCancelledBy", fields: [cancelledById], references: [id])
+  items       OrderItem[]
+
+  @@index([sessionId])
+  @@index([status, createdAt])
+  @@map("orders")
+}
+
+/// Item do pedido. Nome e preços são copiados no momento da venda (snapshot),
+/// para que alterações futuras no cardápio não modifiquem vendas antigas.
+model OrderItem {
+  id             String  @id @default(cuid())
+  orderId        String  @map("order_id")
+  productId      String  @map("product_id")
+  productName    String  @map("product_name")
+  categoryName   String  @map("category_name")
+  unitPriceCents Int     @map("unit_price_cents") // preço base + adicionais, por unidade
+  quantity       Int
+  totalCents     Int     @map("total_cents")
+  note           String?
+
+  order        Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      Product          @relation(fields: [productId], references: [id])
+  addons       OrderItemAddon[]
+  paymentItems PaymentItem[]
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+model OrderItemAddon {
+  id          String  @id @default(cuid())
+  orderItemId String  @map("order_item_id")
+  addonId     String? @map("addon_id")
+  name        String
+  priceCents  Int     @map("price_cents")
+
+  orderItem OrderItem     @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  addon     ProductAddon? @relation(fields: [addonId], references: [id], onDelete: SetNull)
+
+  @@map("order_item_addons")
+}
+
+// ---------------------------------------------------------------------------
+// Pagamentos (registro operacional; não representa confirmação de adquirente/PIX)
+// ---------------------------------------------------------------------------
+
+enum PaymentMethod {
+  PIX
+  CASH
+  DEBIT
+  CREDIT
+}
+
+enum PaymentStatus {
+  REGISTERED
+  VOIDED
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  sessionId     String        @map("session_id")
+  method        PaymentMethod
+  amountCents   Int           @map("amount_cents")
+  /// Valor entregue em dinheiro (para cálculo de troco)
+  receivedCents Int?          @map("received_cents")
+  status        PaymentStatus @default(REGISTERED)
+  payerName     String?       @map("payer_name")
+  note          String?
+  idempotencyKey String       @unique @map("idempotency_key")
+  createdById   String?       @map("created_by_id")
+  voidedById    String?       @map("voided_by_id")
+  voidReason    String?       @map("void_reason")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  session   TabSession    @relation(fields: [sessionId], references: [id])
+  createdBy User?         @relation("PaymentCreatedBy", fields: [createdById], references: [id])
+  voidedBy  User?         @relation("PaymentVoidedBy", fields: [voidedById], references: [id])
+  items     PaymentItem[]
+
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("payments")
+}
+
+/// Vincula um pagamento a itens específicos (divisão de conta por item).
+model PaymentItem {
+  id          String @id @default(cuid())
+  paymentId   String @map("payment_id")
+  orderItemId String @map("order_item_id")
+  quantity    Int
+  amountCents Int    @map("amount_cents")
+
+  payment   Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
+
+  @@map("payment_items")
+}
+
+// ---------------------------------------------------------------------------
+// Auditoria e configurações
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  data      Json?
+  ip        String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+/// Configurações do estabelecimento (linha única, id = 1)
+model Settings {
+  id                 Int      @id @default(1)
+  name               String   @default("Pamonharia")
+  tagline            String   @default("")
+  phone              String   @default("")
+  address            String   @default("")
+  openingHours       String   @default("") @map("opening_hours")
+  serviceFeePercent  Decimal  @default(10) @map("service_fee_percent") @db.Decimal(5, 2)
+  /// Permite que o cliente inicie um atendimento ao aproximar o cartão (sem um funcionário abrir antes)
+  allowSelfOpen      Boolean  @default(false) @map("allow_self_open")
+  kitchenLateMinutes Int      @default(20) @map("kitchen_late_minutes")
+  /// Marca o banco como ambiente de demonstração (exibe faixa "DEMONSTRAÇÃO" na interface)
+  demoMode           Boolean  @default(false) @map("demo_mode")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}

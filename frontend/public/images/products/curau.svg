@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 720" role="img" aria-label="Ilustração: curau de milho servido em tigela">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="35%" r="75%">
+      <stop offset="0" stop-color="#FFF8E8"/>
+      <stop offset="1" stop-color="#F3E3BC"/>
+    </radialGradient>
+    <linearGradient id="bowl" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9A6A3E"/>
+      <stop offset="1" stop-color="#6B4422"/>
+    </linearGradient>
+    <radialGradient id="cream" cx="45%" cy="40%" r="65%">
+      <stop offset="0" stop-color="#FFE38A"/>
+      <stop offset=".7" stop-color="#F5C542"/>
+      <stop offset="1" stop-color="#E2AC22"/>
+    </radialGradient>
+  </defs>
+  <rect width="960" height="720" fill="url(#bg)"/>
+  <g opacity=".18" fill="#426B35">
+    <circle cx="90" cy="110" r="6"/><circle cx="870" cy="140" r="8"/><circle cx="820" cy="620" r="6"/><circle cx="140" cy="600" r="9"/>
+  </g>
+  <!-- folhas de milho -->
+  <path d="M120 560 C 240 420, 330 380, 470 360 C 330 420, 250 480, 180 600 Z" fill="#7FA35B"/>
+  <path d="M840 560 C 720 420, 630 380, 490 360 C 630 420, 710 480, 780 600 Z" fill="#5E8A43"/>
+  <!-- sombra -->
+  <ellipse cx="480" cy="590" rx="300" ry="40" fill="#754C29" opacity=".18"/>
+  <!-- tigela -->
+  <path d="M190 360 Q 480 420 770 360 Q 750 560 480 585 Q 210 560 190 360 Z" fill="url(#bowl)"/>
+  <ellipse cx="480" cy="360" rx="290" ry="70" fill="#5A381B"/>
+  <ellipse cx="480" cy="362" rx="268" ry="58" fill="url(#cream)"/>
+  <path d="M260 470 Q 480 520 700 470" stroke="#F5C542" stroke-width="10" fill="none" opacity=".55" stroke-linecap="round"/>
+  <!-- canela -->
+  <g fill="#8B5A2B">
+    <circle cx="400" cy="350" r="5"/><circle cx="430" cy="372" r="4"/><circle cx="470" cy="345" r="6"/><circle cx="505" cy="368" r="4"/>
+    <circle cx="540" cy="350" r="5"/><circle cx="575" cy="370" r="4"/><circle cx="455" cy="385" r="3"/><circle cx="520" cy="335" r="3"/>
+    <circle cx="360" cy="372" r="3"/><circle cx="610" cy="352" r="3"/>
+  </g>
+  <!-- pau de canela -->
+  <g transform="rotate(-18 640 330)">
+    <rect x="560" y="300" width="190" height="26" rx="13" fill="#9C6234"/>
+    <rect x="560" y="300" width="190" height="9" rx="4" fill="#B97A45"/>
+  </g>
+  <text x="935" y="700" text-anchor="end" font-family="system-ui, sans-serif" font-size="22" fill="#754C29" opacity=".55">Ilustração</text>
+</svg>

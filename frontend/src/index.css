@@ -1,0 +1,109 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Nunito Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+
+  /* Verde-milho (marca) */
+  --color-verde-50: #f1f6ee;
+  --color-verde-100: #dfead8;
+  --color-verde-200: #bed5b1;
+  --color-verde-300: #93b880;
+  --color-verde-400: #6b9858;
+  --color-verde-500: #4f7d40;
+  --color-verde-600: #426b35;
+  --color-verde-700: #35552b;
+  --color-verde-800: #2c4524;
+  --color-verde-900: #22361d;
+
+  /* Amarelo-milho (destaque) */
+  --color-milho-50: #fffbeb;
+  --color-milho-100: #fef3c7;
+  --color-milho-200: #fde68a;
+  --color-milho-300: #fad766;
+  --color-milho-400: #f5c542;
+  --color-milho-500: #e2ac22;
+  --color-milho-600: #c38a14;
+  --color-milho-700: #9b6612;
+
+  /* Marrom (texto de apoio, madeira) */
+  --color-marrom-50: #f8f1ea;
+  --color-marrom-100: #eedfcf;
+  --color-marrom-300: #c79c74;
+  --color-marrom-500: #9a6a3e;
+  --color-marrom-600: #754c29;
+  --color-marrom-700: #5a381b;
+  --color-marrom-900: #2e1c0e;
+
+  --color-creme: #fff8e8;
+  --color-creme-escuro: #f6ead0;
+
+  --shadow-card: 0 1px 2px rgb(117 76 41 / 0.06), 0 4px 16px -4px rgb(117 76 41 / 0.12);
+  --shadow-float: 0 10px 30px -8px rgb(46 28 14 / 0.35);
+
+  --animate-pop: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-slide-up: slide-up 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-fade-in: fade-in 0.2s ease-out;
+  --animate-pulse-ring: pulse-ring 1.6s ease-out infinite;
+
+  @keyframes pop {
+    0% { transform: scale(0.6); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes slide-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgb(220 38 38 / 0.45); }
+    70% { box-shadow: 0 0 0 12px rgb(220 38 38 / 0); }
+    100% { box-shadow: 0 0 0 0 rgb(220 38 38 / 0); }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-creme font-sans text-marrom-900 antialiased;
+    overflow-x: hidden;
+  }
+  h1, h2, h3 {
+    @apply font-display;
+    letter-spacing: -0.01em;
+  }
+  /* Evita zoom automático do iOS ao focar campos (fonte >= 16px) */
+  input, select, textarea {
+    font-size: 16px;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-verde-600;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
+  .pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
