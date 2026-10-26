@@ -301,25 +301,26 @@ describe('Cenário 5 — reutilização do cartão', () => {
     expect((await agents.waiter.post('/api/sessions').send({ tabNumber: 41 })).status).toBe(201);
   });
 
-  it('cliente informa a mesa ao abrir pelo cartão, ou depois (uma única vez)', async () => {
+  it('comanda N abre na mesa N (pelo cartão e pela equipe); sem mesa correspondente, fica no balcão', async () => {
     await prisma.settings.update({ where: { id: 1 }, data: { allowSelfOpen: true } });
     try {
-      const t1 = generateCardToken();
-      await prisma.tab.create({ data: { number: 42, cards: { create: { token: t1 } } } });
-      const opened = await request(baseUrl).post(`/api/public/cards/${t1}/open`).send({ tableNumber: 5 });
+      // Cartão da comanda 5 → mesa 05, sem o cliente escolher nada
+      const t5 = generateCardToken();
+      await prisma.tab.create({ data: { number: 5, cards: { create: { token: t5 } } } });
+      const opened = await request(baseUrl).post(`/api/public/cards/${t5}/open`).send({});
       expect(opened.status).toBe(201);
       expect(opened.body.session.tableNumber).toBe(5);
-      expect((await request(baseUrl).post(`/api/public/cards/${t1}/table`).send({ tableNumber: 8 })).body.error.code).toBe('TABLE_ALREADY_SET');
 
-      const t2 = generateCardToken();
-      await prisma.tab.create({ data: { number: 43, cards: { create: { token: t2 } } } });
-      const counter = await request(baseUrl).post(`/api/public/cards/${t2}/open`).send({ tableNumber: null });
+      // Equipe abre a comanda 8 sem informar mesa → mesa 08
+      await prisma.tab.create({ data: { number: 8 } });
+      const staff = await agents.waiter.post('/api/sessions').send({ tabNumber: 8 });
+      expect(staff.body.session.table.number).toBe(8);
+
+      // Comanda 42 não tem mesa 42 → balcão
+      const t42 = generateCardToken();
+      await prisma.tab.create({ data: { number: 42, cards: { create: { token: t42 } } } });
+      const counter = await request(baseUrl).post(`/api/public/cards/${t42}/open`).send({});
       expect(counter.body.session.tableNumber).toBeNull();
-      expect((await request(baseUrl).post(`/api/public/cards/${t2}/table`).send({ tableNumber: 999 })).status).toBe(400);
-      const set = await request(baseUrl).post(`/api/public/cards/${t2}/table`).send({ tableNumber: 8 });
-      expect(set.status).toBe(200);
-      expect(set.body.session.tableNumber).toBe(8);
-      expect((await request(baseUrl).get('/api/public/tables')).body.tables.map((x: { number: number }) => x.number)).toEqual([5, 8]);
     } finally {
       await prisma.settings.update({ where: { id: 1 }, data: { allowSelfOpen: false } });
     }

@@ -124,7 +124,7 @@ export default function TableDetail() {
       )}
 
       <Sheet open={openForm} onClose={() => setOpenForm(false)} title={`Nova comanda · Mesa ${padTable(data.table.number)}`}>
-        <OpenTabForm tables={tables} defaultTableId={data.table.id} onDone={() => setOpenForm(false)} />
+        <OpenTabForm tables={tables} defaultTableId={data.table.id} defaultTabNumber={data.sessions.length === 0 ? data.table.number : undefined} onDone={() => setOpenForm(false)} />
       </Sheet>
       {transfer && <TransferSheet session={transfer} open onClose={() => setTransfer(null)} />}
     </div>

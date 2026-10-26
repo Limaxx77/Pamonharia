@@ -68,7 +68,8 @@ sessionRoutes.post('/', requireRole('WAITER', 'CASHIER'), async (req, res) => {
   if (!tab) throw notFound(`Comanda ${body.tabNumber} não cadastrada`);
   const session = await openSession({
     tabId: tab.id,
-    tableId: body.tableId ?? null,
+    tableId: body.tableId, // ausente = mesa com o mesmo número da comanda
+
     customerName: body.customerName ?? null,
     waiterId: req.user!.role === 'WAITER' ? req.user!.id : null,
     openedById: req.user!.id,

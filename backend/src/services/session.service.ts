@@ -156,6 +156,10 @@ export async function findOpenSession(tabId: string, tx: Tx | typeof prisma = pr
 
 interface OpenSessionInput {
   tabId: string;
+  /**
+   * undefined = automático: a comanda N fica na mesa N (se existir e estiver ativa; senão, balcão).
+   * null = balcão explícito. string = mesa escolhida pela equipe.
+   */
   tableId?: string | null;
   customerName?: string | null;
   waiterId?: string | null;
@@ -178,16 +182,24 @@ export async function openSession(input: OpenSessionInput) {
     const existing = await findOpenSession(tab.id, tx);
     if (existing) throw conflict('SESSION_ALREADY_OPEN', `A comanda ${tab.number} já possui um atendimento aberto`);
 
-    if (input.tableId) {
-      const table = await tx.diningTable.findUnique({ where: { id: input.tableId } });
-      if (!table || !table.active) throw badRequest('INVALID_TABLE', 'Mesa inválida');
+    let tableId: string | null;
+    if (input.tableId === undefined) {
+      // Comanda N = mesa N
+      const same = await tx.diningTable.findUnique({ where: { number: tab.number } });
+      tableId = same?.active ? same.id : null;
+    } else {
+      tableId = input.tableId;
+      if (tableId) {
+        const table = await tx.diningTable.findUnique({ where: { id: tableId } });
+        if (!table || !table.active) throw badRequest('INVALID_TABLE', 'Mesa inválida');
+      }
     }
 
     const settings = await tx.settings.findUnique({ where: { id: 1 } });
     const session = await tx.tabSession.create({
       data: {
         tabId: tab.id,
-        tableId: input.tableId ?? null,
+        tableId,
         customerName: input.customerName ?? null,
         waiterId: input.waiterId ?? null,
         openedById: input.openedById ?? null,
@@ -201,7 +213,7 @@ export async function openSession(input: OpenSessionInput) {
         action: 'session.open',
         entity: 'tab_session',
         entityId: session.id,
-        data: { tabNumber: tab.number, tableId: input.tableId ?? null, via: input.openedVia },
+        data: { tabNumber: tab.number, tableId, via: input.openedVia },
         ip: input.ip,
       },
       tx,

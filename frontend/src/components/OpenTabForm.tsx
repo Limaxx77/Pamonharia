@@ -11,9 +11,15 @@ import { Button, Field, Input, Select, useToast } from './ui';
  * Abre um atendimento numa comanda (ou localiza o já aberto) e segue para o pedido.
  * Se a comanda já estiver aberta, apenas navega até ela — nunca cria um controle paralelo.
  */
-export function OpenTabForm({ tables, defaultTableId, onDone }: { tables?: TableSummary[]; defaultTableId?: string; onDone?: () => void }) {
-  const [tabNumber, setTabNumber] = useState('');
+export function OpenTabForm({ tables, defaultTableId, defaultTabNumber, onDone }: { tables?: TableSummary[]; defaultTableId?: string; defaultTabNumber?: number; onDone?: () => void }) {
+  const [tabNumber, setTabNumber] = useState(defaultTabNumber ? String(defaultTabNumber) : '');
   const [tableId, setTableId] = useState(defaultTableId ?? '');
+  // Enquanto a mesa não for escolhida à mão, segue a regra "comanda N = mesa N"
+  const [tableTouched, setTableTouched] = useState(!!defaultTableId);
+  const onTabNumber = (v: string) => {
+    setTabNumber(v);
+    if (!tableTouched) setTableId(tables?.find((t) => t.number === Number(v))?.id ?? '');
+  };
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -57,10 +63,17 @@ export function OpenTabForm({ tables, defaultTableId, onDone }: { tables?: Table
     <form onSubmit={submit} className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <Field label="Comanda nº" htmlFor="tabn">
-          <Input id="tabn" inputMode="numeric" pattern="[0-9]*" value={tabNumber} onChange={(e) => setTabNumber(e.target.value.replace(/\D/g, ''))} placeholder="025" autoFocus />
+          <Input id="tabn" inputMode="numeric" pattern="[0-9]*" value={tabNumber} onChange={(e) => onTabNumber(e.target.value.replace(/\D/g, ''))} placeholder="001" autoFocus />
         </Field>
         <Field label="Mesa" htmlFor="tbl">
-          <Select id="tbl" value={tableId} onChange={(e) => setTableId(e.target.value)}>
+          <Select
+            id="tbl"
+            value={tableId}
+            onChange={(e) => {
+              setTableId(e.target.value);
+              setTableTouched(true);
+            }}
+          >
             <option value="">Balcão</option>
             {tables?.map((t) => (
               <option key={t.id} value={t.id}>

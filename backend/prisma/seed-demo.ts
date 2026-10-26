@@ -185,7 +185,8 @@ async function main() {
     [{ name: 'Pamonha doce com queijo', qty: 1 }, { name: 'Bolo de fubá', qty: 1 }, { name: 'Café coado', qty: 1 }],
   ];
   const methods: PaymentMethod[] = ['PIX', 'PIX', 'PIX', 'CREDIT', 'DEBIT', 'DEBIT', 'CASH'];
-  const historyTabs = Array.from({ length: 30 }, (_, i) => i + 1);
+  // Comanda N = mesa N; comandas 21–30 são de balcão (sem mesa)
+  const counterTabs = Array.from({ length: 10 }, (_, i) => i + 21);
 
   let closedCount = 0;
   for (let day = 30; day >= 1; day--) {
@@ -199,7 +200,7 @@ async function main() {
       const waiter = pick(waiters);
       const s = await prisma.tabSession.create({
         data: {
-          tabId: tabs.get(pick(historyTabs))!.id,
+          tabId: tabs.get(table ? table.number : pick(counterTabs))!.id,
           tableId: table?.id ?? null,
           waiterId: waiter.id,
           openedById: waiter.id,
@@ -245,34 +246,34 @@ async function main() {
     }
   }
   // ------------------------------------------------------------ atendimentos abertos agora
-  // Mesa 05 — três comandas individuais
-  const s11 = await openAt(11, 5, 55, 'Cliente A', waiter1.id);
+  // Mesas 11, 12 e 13 — grupo de amigos, cada um na sua comanda/mesa
+  const s11 = await openAt(11, 11, 55, 'Cliente A', waiter1.id);
   await addOrder(s11.id, 'NFC', 'DELIVERED', [{ name: 'Pamonha com queijo', qty: 1 }, { name: 'Suco de laranja (500 ml)', qty: 1 }], ago(50));
   await addOrder(s11.id, 'NFC', 'PREPARING', [{ name: 'Curau de milho', qty: 1 }], ago(8));
-  const s12 = await openAt(12, 5, 54, 'Cliente B', waiter1.id);
+  const s12 = await openAt(12, 12, 54, 'Cliente B', waiter1.id);
   await addOrder(s12.id, 'WAITER', 'DELIVERED', [{ name: 'Pamonha com carne', qty: 1 }, { name: 'Refrigerante lata', qty: 1 }], ago(48), waiter1.id);
-  const s13 = await openAt(13, 5, 52, 'Cliente C', waiter1.id);
+  const s13 = await openAt(13, 13, 52, 'Cliente C', waiter1.id);
   await addOrder(s13.id, 'NFC', 'DELIVERED', [{ name: 'Pamonha doce tradicional', qty: 2, addons: ['Canela'] }, { name: 'Café coado', qty: 1 }], ago(45));
 
-  // Mesa 08 — comanda 025 (cenário principal do enunciado)
-  const s25 = await openAt(25, 8, 40, null, waiter2.id);
+  // Mesa 08 — comanda 008: pedido pelo cartão NFC + pedido do garçom
+  const s25 = await openAt(8, 8, 40, null, waiter2.id);
   await addOrder(s25.id, 'NFC', 'DELIVERED', [{ name: 'Pamonha com queijo', qty: 2 }, { name: 'Pamonha doce tradicional', qty: 1 }, { name: 'Refrigerante lata', qty: 2 }], ago(38));
   await addOrder(s25.id, 'WAITER', 'RECEIVED', [{ name: 'Pamonha salgada', qty: 1 }, { name: 'Suco de laranja (500 ml)', qty: 1 }], ago(2), waiter2.id);
 
   // Mesa 02 — pedido em preparação e atrasado
-  const s3 = await openAt(3, 2, 35, 'Família Souza', waiter2.id);
+  const s3 = await openAt(2, 2, 35, 'Família Souza', waiter2.id);
   await addOrder(s3.id, 'WAITER', 'PREPARING', [{ name: 'Pamonha recheada da casa', qty: 2 }, { name: 'Mandioca frita', qty: 1, note: 'Bem sequinha' }, { name: 'Limonada', qty: 3 }], ago(26), waiter2.id);
 
   // Mesa 03 — pediu a conta
-  const s4 = await openAt(4, 3, 70, null, waiter1.id);
+  const s4 = await openAt(3, 3, 70, null, waiter1.id);
   await addOrder(s4.id, 'NFC', 'DELIVERED', [{ name: 'Combo goiano', qty: 2 }, { name: 'Pudim de leite', qty: 2 }], ago(60));
   await prisma.tabSession.update({ where: { id: s4.id }, data: { billRequestedAt: ago(3) } });
 
   // Mesa 10 — acabou de sentar, aguardando pedido
-  await openAt(7, 10, 4, null, waiter2.id);
+  await openAt(10, 10, 4, null, waiter2.id);
 
   // Mesa 14 — pedido pronto aguardando entrega
-  const s9 = await openAt(9, 14, 20, null, waiter1.id);
+  const s9 = await openAt(14, 14, 20, null, waiter1.id);
   await addOrder(s9.id, 'NFC', 'READY', [{ name: 'Pamonha à moda goiana', qty: 1, addons: ['Queijo extra'], note: 'Sem pimenta' }, { name: 'Suco de maracujá com melancia (500 ml)', qty: 1 }], ago(15));
 
   // Balcão (sem mesa) — comanda 030
@@ -281,11 +282,11 @@ async function main() {
 
   await prisma.auditLog.create({ data: { userId: admin.id, action: 'seed.demo', entity: 'system', data: { closedSessions: closedCount } } });
 
-  const card25 = await prisma.nfcCard.findFirst({ where: { tab: { number: 25 }, status: 'ACTIVE' } });
+  const card25 = await prisma.nfcCard.findFirst({ where: { tab: { number: 8 }, status: 'ACTIVE' } });
   console.log('✅ Demo criada');
   console.log(`   ${products.length} produtos, 20 mesas, 30 comandas, ${closedCount} atendimentos históricos`);
   console.log('   Logins (senha demo1234): admin@demo.com, garcom@demo.com, garcom2@demo.com, cozinha@demo.com, caixa@demo.com');
-  console.log(`   Cartão da comanda 025: ${(process.env.PUBLIC_APP_URL ?? 'http://localhost:5173').replace(/\/$/, '')}/c/${card25?.token}`);
+  console.log(`   Cartão da comanda 008 (mesa 08): ${(process.env.PUBLIC_APP_URL ?? 'http://localhost:5173').replace(/\/$/, '')}/c/${card25?.token}`);
 }
 
 main()

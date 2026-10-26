@@ -77,15 +77,16 @@ Acesse http://localhost:5173. Para testar no celular, use a mesma rede Wi-Fi e a
 | Cozinha | cozinha@demo.com |
 | Caixa | caixa@demo.com |
 
-O seed imprime o link do **cartão da comanda 025**. Todos os links ficam em **Cartões NFC** (copiar URL, QR Code, “Testar link”).
+O seed imprime o link do **cartão da comanda 008**. Todos os links ficam em **Cartões NFC** (copiar URL, QR Code, “Testar link”).
 
 ### Dados de demonstração
 
 20 mesas, 31 comandas (30 com cartão ativo e 1 marcada como perdida), 24 produtos com imagens em 8 categorias, 5 funcionários, 159 atendimentos encerrados nos últimos 30 dias (para os gráficos) e atendimentos abertos prontos para testar:
 
-- **Mesa 05** com três comandas (011 Cliente A, 012 Cliente B, 013 Cliente C)
-- **Mesa 08 / comanda 025** com pedido NFC entregue e pedido do garçom recebido
-- Mesa 02 com pedido atrasado em preparo · Mesa 03 pedindo a conta · Mesa 10 aguardando pedido · Mesa 14 com pedido pronto · Comanda 030 no balcão
+**Regra: a comanda N fica na mesa N** (comanda 001 = mesa 01). Ao abrir uma comanda — pelo cartão NFC ou pela equipe — ela é vinculada automaticamente à mesa de mesmo número; comandas sem mesa correspondente (21 a 30) são de balcão. A equipe ainda pode escolher outra mesa ou transferir.
+
+- **Mesa 08 / comanda 008** com pedido NFC entregue e pedido do garçom recebido
+- Mesas 11, 12 e 13 (grupo, cada um na sua comanda) · Mesa 02 com pedido atrasado em preparo · Mesa 03 pedindo a conta · Mesa 10 aguardando pedido · Mesa 14 com pedido pronto · Comanda 030 no balcão
 
 Os dados de demonstração ficam isolados:
 - banco próprio (`pamonharia_demo`), marcado com `demo_mode = true`;
