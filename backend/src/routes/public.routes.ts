@@ -2,7 +2,8 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { conflict, HttpError, notFound } from '../lib/errors.js';
+import { badRequest, conflict, HttpError, notFound } from '../lib/errors.js';
+import { audit } from '../lib/audit.js';
 import { clientIp, idParam, parseBody } from '../middleware/validate.js';
 import { getPublicMenu, getSettings, publicSettings } from '../services/menu.service.js';
 import { findOpenSession, getSessionDetail, openSession, type SessionDTO } from '../services/session.service.js';
@@ -93,34 +94,49 @@ function toCustomerView(s: SessionDTO) {
 
 const RECENT_CLOSED_MS = 2 * 60 * 60 * 1000;
 
+/** Mesas ativas (somente número/identificação), para o cliente informar onde está sentado. */
+publicRoutes.get('/tables', async (_req, res) => {
+  const tables = await prisma.diningTable.findMany({
+    where: { active: true },
+    select: { number: true, label: true },
+    orderBy: { number: 'asc' },
+  });
+  res.json({ tables });
+});
+
+async function tableIdFromNumber(tableNumber: number | null | undefined) {
+  if (tableNumber == null) return null;
+  const table = await prisma.diningTable.findUnique({ where: { number: tableNumber } });
+  if (!table || !table.active) throw badRequest('INVALID_TABLE', 'Mesa não encontrada');
+  return table.id;
+}
+
 /**
- * Estado do cartão. Retorna o atendimento ABERTO atual; um atendimento encerrado só é devolvido
- * se o próprio dispositivo informar o id dele (sessionId) e o encerramento for recente — assim o
- * próximo cliente que usar o cartão não vê o consumo do anterior.
+ * Estado do cartão. `session` é sempre o atendimento ABERTO atual (ou null): assim que a conta é
+ * fechada, o cartão fica livre para um novo atendimento. O atendimento recém-encerrado vem à parte
+ * (`lastClosed`), apenas para o aparelho que o acompanhava (informa o próprio sessionId) e por pouco
+ * tempo — o próximo cliente que usar o cartão não vê o consumo do anterior.
  */
 publicRoutes.get('/cards/:token', cardLimiter, async (req, res) => {
   const card = await resolveCard(idParam(req, 'token'));
   await prisma.nfcCard.update({ where: { id: card.id }, data: { lastUsedAt: new Date() } });
   const settings = await getSettings();
   const open = await findOpenSession(card.tabId);
+  const session = open ? toCustomerView(await getSessionDetail(open.id)) : null;
 
-  let session = open ? toCustomerView(await getSessionDetail(open.id)) : null;
-  let previousClosed = null;
+  let lastClosed = null;
   const known = typeof req.query.sessionId === 'string' ? req.query.sessionId : null;
-  if (known && (!open || open.id !== known)) {
+  if (known && !open) {
     const prev = await prisma.tabSession.findFirst({ where: { id: known, tabId: card.tabId, status: 'CLOSED' } });
     if (prev?.closedAt && Date.now() - prev.closedAt.getTime() < RECENT_CLOSED_MS) {
-      previousClosed = toCustomerView(await getSessionDetail(prev.id));
+      lastClosed = toCustomerView(await getSessionDetail(prev.id));
     }
-  }
-  if (!session && previousClosed) {
-    session = previousClosed;
-    previousClosed = null;
   }
 
   res.json({
     tab: { number: card.tab.number, label: padTab(card.tab.number) },
     session,
+    lastClosed,
     canSelfOpen: !open && settings.allowSelfOpen,
     settings: publicSettings(settings),
   });
@@ -133,9 +149,17 @@ publicRoutes.post('/cards/:token/open', orderLimiter, async (req, res) => {
   if (!settings.allowSelfOpen) {
     throw new HttpError(403, 'SELF_OPEN_DISABLED', 'Solicite a abertura da comanda a um atendente.');
   }
-  const body = parseBody(z.object({ customerName: z.string().trim().max(60).optional().nullable() }), req);
+  const body = parseBody(
+    z.object({
+      customerName: z.string().trim().max(60).optional().nullable(),
+      /** null = balcão / retirada */
+      tableNumber: z.number().int().positive().max(9999).nullable().optional(),
+    }),
+    req,
+  );
   const session = await openSession({
     tabId: card.tabId,
+    tableId: await tableIdFromNumber(body.tableNumber),
     customerName: body.customerName || null,
     openedVia: 'NFC',
     ip: clientIp(req),
@@ -160,6 +184,23 @@ publicRoutes.post('/cards/:token/orders', orderLimiter, async (req, res) => {
   }
   const { order, duplicate } = await createOrder({ sessionId: open.id, source: 'NFC', input: body });
   res.status(duplicate ? 200 : 201).json({ orderId: order.id, number: order.number, duplicate });
+});
+
+/**
+ * Cliente informa a mesa de um atendimento que está sem mesa. Só vale enquanto não houver mesa
+ * definida: trocar de mesa depois disso é feito pela equipe (transferência auditada).
+ */
+publicRoutes.post('/cards/:token/table', orderLimiter, async (req, res) => {
+  const card = await resolveCard(idParam(req, 'token'));
+  const { tableNumber } = parseBody(z.object({ tableNumber: z.number().int().positive().max(9999) }), req);
+  const tableId = await tableIdFromNumber(tableNumber);
+  const open = await findOpenSession(card.tabId);
+  if (!open) throw conflict('NO_OPEN_SESSION', 'Esta comanda não possui atendimento aberto.');
+  const updated = await prisma.tabSession.updateMany({ where: { id: open.id, status: 'OPEN', tableId: null }, data: { tableId } });
+  if (updated.count === 0) throw conflict('TABLE_ALREADY_SET', 'A mesa já foi definida. Para trocar, chame um atendente.');
+  await audit({ action: 'session.set_table', entity: 'tab_session', entityId: open.id, data: { tableNumber, via: 'NFC' }, ip: clientIp(req) });
+  notifySession(open.id);
+  res.json({ session: toCustomerView(await getSessionDetail(open.id)) });
 });
 
 publicRoutes.post('/cards/:token/request-bill', orderLimiter, async (req, res) => {

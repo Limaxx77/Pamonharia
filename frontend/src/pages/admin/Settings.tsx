@@ -225,6 +225,7 @@ const ACTION_LABEL: Record<string, string> = {
   'session.close': 'Comanda fechada',
   'session.reopen': 'Comanda reaberta',
   'session.transfer': 'Transferência de mesa',
+  'session.set_table': 'Mesa informada pelo cliente',
   'session.discount': 'Desconto',
   'session.service_fee': 'Taxa de serviço',
   'session.cancel_empty': 'Atendimento sem consumo encerrado',

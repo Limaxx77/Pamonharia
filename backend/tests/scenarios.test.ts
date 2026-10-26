@@ -280,6 +280,51 @@ describe('Cenário 5 — reutilização do cartão', () => {
     expect((await sessionOf(novo)).totals.subtotalCents).toBe(1200);
   });
 
+  it('ao fechar a conta o cartão fica livre na hora; o resumo encerrado vem à parte só para o aparelho que acompanhava', async () => {
+    const t = generateCardToken();
+    await prisma.tab.create({ data: { number: 41, cards: { create: { token: t } } } });
+    const sid = await openSession(41, ids.table8);
+    await request(baseUrl).post(`/api/public/cards/${t}/orders`).send({ sessionId: sid, items: [{ productId: ids.doce, quantity: 1 }], idempotencyKey: key() });
+    const due = (await sessionOf(sid)).totals.remainingCents;
+    const pay = await agents.cashier.post(`/api/sessions/${sid}/payments`).send({ method: 'PIX', amountCents: due, idempotencyKey: key() });
+    expect(pay.body.closed).toBe(true);
+
+    const mine = await request(baseUrl).get(`/api/public/cards/${t}?sessionId=${sid}`);
+    expect(mine.body.session).toBeNull();
+    expect(mine.body.lastClosed.id).toBe(sid);
+
+    const stranger = await request(baseUrl).get(`/api/public/cards/${t}`);
+    expect(stranger.body.session).toBeNull();
+    expect(stranger.body.lastClosed).toBeNull();
+
+    // e já pode abrir um novo atendimento imediatamente
+    expect((await agents.waiter.post('/api/sessions').send({ tabNumber: 41 })).status).toBe(201);
+  });
+
+  it('cliente informa a mesa ao abrir pelo cartão, ou depois (uma única vez)', async () => {
+    await prisma.settings.update({ where: { id: 1 }, data: { allowSelfOpen: true } });
+    try {
+      const t1 = generateCardToken();
+      await prisma.tab.create({ data: { number: 42, cards: { create: { token: t1 } } } });
+      const opened = await request(baseUrl).post(`/api/public/cards/${t1}/open`).send({ tableNumber: 5 });
+      expect(opened.status).toBe(201);
+      expect(opened.body.session.tableNumber).toBe(5);
+      expect((await request(baseUrl).post(`/api/public/cards/${t1}/table`).send({ tableNumber: 8 })).body.error.code).toBe('TABLE_ALREADY_SET');
+
+      const t2 = generateCardToken();
+      await prisma.tab.create({ data: { number: 43, cards: { create: { token: t2 } } } });
+      const counter = await request(baseUrl).post(`/api/public/cards/${t2}/open`).send({ tableNumber: null });
+      expect(counter.body.session.tableNumber).toBeNull();
+      expect((await request(baseUrl).post(`/api/public/cards/${t2}/table`).send({ tableNumber: 999 })).status).toBe(400);
+      const set = await request(baseUrl).post(`/api/public/cards/${t2}/table`).send({ tableNumber: 8 });
+      expect(set.status).toBe(200);
+      expect(set.body.session.tableNumber).toBe(8);
+      expect((await request(baseUrl).get('/api/public/tables')).body.tables.map((x: { number: number }) => x.number)).toEqual([5, 8]);
+    } finally {
+      await prisma.settings.update({ where: { id: 1 }, data: { allowSelfOpen: false } });
+    }
+  });
+
   it('não permite dois atendimentos abertos na mesma comanda', async () => {
     const res = await agents.waiter.post('/api/sessions').send({ tabNumber: 25 });
     expect(res.status).toBe(409);

@@ -15,7 +15,10 @@ import { Button, EmptyState, ErrorBox, Field, Input, Spinner, useToast } from '.
 
 interface CardState {
   tab: { number: number; label: string };
+  /** Atendimento aberto atual (null = cartão livre) */
   session: CustomerSession | null;
+  /** Atendimento que este aparelho acompanhava e que acabou de ser encerrado */
+  lastClosed: CustomerSession | null;
   canSelfOpen: boolean;
   settings: Settings;
 }
@@ -159,7 +162,8 @@ export function CardApp() {
   }
   if (!card) return null;
 
-  if (!session) {
+  // Sem atendimento aberto: o cartão está livre (inclusive logo após o fechamento da conta)
+  if (!session || !open) {
     return (
       <Shell tabLabel={card.tab.label}>
         <NoSession token={token} card={card} />
@@ -173,29 +177,13 @@ export function CardApp() {
     );
   }
 
-  if (!open) {
-    return (
-      <Shell tabLabel={card.tab.label}>
-        <div className="mx-auto max-w-md px-4 py-10">
-          <div className="text-center">
-            <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-verde-100 text-verde-700">
-              <CheckCircle2 className="size-9" />
-            </div>
-            <h1 className="mt-4 text-2xl font-bold">Atendimento encerrado</h1>
-            <p className="mt-1 text-marrom-600">Obrigado pela visita! Esta comanda não aceita novos pedidos.</p>
-          </div>
-          <div className="mt-6">
-            <TotalsBox totals={session.totals} serviceFeePercent={session.serviceFeePercent} payments={session.payments} />
-          </div>
-        </div>
-      </Shell>
-    );
-  }
-
   // ---------------------------------------------------------------- atendimento aberto
   return (
     <Shell tabLabel={card.tab.label} tableNumber={session.tableNumber} total={session.totals.totalCents} onBill={() => setView('bill')}>
       <main className="mx-auto max-w-5xl px-4 pb-44">
+        {session.tableNumber == null && storage.get(`pm.card.${session.id}.counter`) !== '1' && (
+          <SetTableBanner token={token} sessionId={session.id} />
+        )}
         {view === 'menu' && menu.data && <MenuBrowser categories={menu.data} canOrder onSelect={setSelected} stickyTop={64} />}
         {view === 'menu' && menu.isLoading && <Spinner />}
         {view === 'orders' && <OrdersView session={session} onMenu={() => setView('menu')} />}
@@ -300,15 +288,113 @@ function Shell({ children, tabLabel, tableNumber, total, onBill }: { children: R
   );
 }
 
+function usePublicTables(enabled = true) {
+  return useQuery({
+    queryKey: ['public-tables'],
+    queryFn: () => api<{ tables: { number: number; label: string | null }[] }>('/public/tables').then((r) => r.tables),
+    staleTime: 5 * 60_000,
+    enabled,
+  });
+}
+
+/** Grade para o cliente escolher a mesa. `null` = balcão / retirada. */
+function TablePicker({ value, onChange }: { value: number | null | undefined; onChange: (v: number | null) => void }) {
+  const { data, isLoading } = usePublicTables();
+  if (isLoading) return <Spinner className="py-4" />;
+  return (
+    <div className="grid grid-cols-5 gap-2" role="radiogroup" aria-label="Mesa">
+      {data?.map((t) => (
+        <button
+          key={t.number}
+          type="button"
+          role="radio"
+          aria-checked={value === t.number}
+          aria-label={`Mesa ${t.number}${t.label ? ` (${t.label})` : ''}`}
+          onClick={() => onChange(t.number)}
+          className={clsx(
+            'h-12 rounded-xl border-2 font-display text-lg font-bold',
+            value === t.number ? 'border-verde-600 bg-verde-600 text-white' : 'border-marrom-100 bg-white text-marrom-800',
+          )}
+        >
+          {padTable(t.number)}
+        </button>
+      ))}
+      <button
+        type="button"
+        role="radio"
+        aria-checked={value === null}
+        onClick={() => onChange(null)}
+        className={clsx(
+          'col-span-5 h-12 rounded-xl border-2 text-sm font-bold',
+          value === null ? 'border-verde-600 bg-verde-600 text-white' : 'border-marrom-100 bg-white text-marrom-700',
+        )}
+      >
+        Estou no balcão / retirada
+      </button>
+    </div>
+  );
+}
+
+/** Atendimento aberto sem mesa: o cliente informa onde está (uma única vez). */
+function SetTableBanner({ token, sessionId }: { token: string; sessionId: string }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [table, setTable] = useState<number | null | undefined>(undefined);
+  const [, rerender] = useState(0);
+  const save = useMutation({
+    mutationFn: (tableNumber: number) => post(`/public/cards/${encodeURIComponent(token)}/table`, { tableNumber }),
+    onSuccess: () => {
+      toast.success('Mesa informada! Seus pedidos serão entregues nela.');
+      qc.invalidateQueries({ queryKey: ['card', token] });
+    },
+    onError: (e) => {
+      toast.error(errorMessage(e));
+      qc.invalidateQueries({ queryKey: ['card', token] });
+    },
+  });
+  const confirm = () => {
+    if (table === undefined) return;
+    if (table === null) {
+      storage.set(`pm.card.${sessionId}.counter`, '1');
+      rerender((n) => n + 1);
+      return;
+    }
+    save.mutate(table);
+  };
+  return (
+    <section className="mt-4 rounded-2xl border-2 border-milho-400 bg-milho-50 p-4" aria-labelledby="set-table">
+      <h2 id="set-table" className="font-sans text-base font-extrabold">Em qual mesa você está?</h2>
+      <p className="mb-3 text-sm text-marrom-600">Assim o garçom sabe onde entregar seus pedidos.</p>
+      <TablePicker value={table} onChange={setTable} />
+      <Button className="mt-3" block disabled={table === undefined} loading={save.isPending} onClick={confirm}>
+        Confirmar
+      </Button>
+    </section>
+  );
+}
+
 function NoSession({ token, card }: { token: string; card: CardState }) {
   const qc = useQueryClient();
   const [name, setName] = useState('');
+  const [table, setTable] = useState<number | null | undefined>(undefined);
+  const [error, setError] = useState('');
   const openMut = useMutation({
-    mutationFn: () => post(`/public/cards/${encodeURIComponent(token)}/open`, { customerName: name.trim() || null }),
+    mutationFn: () => post(`/public/cards/${encodeURIComponent(token)}/open`, { customerName: name.trim() || null, tableNumber: table ?? null }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['card', token] }),
   });
+  const last = card.lastClosed;
   return (
     <div className="mx-auto max-w-md px-4 pt-8 text-center">
+      {last && (
+        <div className="mb-6 rounded-2xl bg-verde-50 p-4 text-left">
+          <p className="flex items-center gap-2 font-extrabold text-verde-800">
+            <CheckCircle2 className="size-5" /> Atendimento encerrado. Obrigado pela visita!
+          </p>
+          <p className="mt-1 text-sm text-marrom-600">
+            Total pago: <strong className="tabular">{brl(last.totals.paidCents)}</strong>. A comanda já está liberada para um novo atendimento.
+          </p>
+        </div>
+      )}
       <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-milho-200 text-verde-800">
         <Nfc className="size-8" />
       </div>
@@ -317,12 +403,20 @@ function NoSession({ token, card }: { token: string; card: CardState }) {
         <>
           <p className="mt-1 text-marrom-600">Bem-vindo(a)! Inicie seu atendimento para fazer pedidos por esta comanda.</p>
           <form
-            className="mt-5 space-y-3 text-left"
+            className="mt-5 space-y-4 text-left"
             onSubmit={(e) => {
               e.preventDefault();
+              if (table === undefined) {
+                setError('Escolha sua mesa (ou balcão)');
+                return;
+              }
+              setError('');
               openMut.mutate();
             }}
           >
+            <Field label="Em qual mesa você está?" error={error}>
+              <TablePicker value={table} onChange={(v) => { setTable(v); setError(''); }} />
+            </Field>
             <Field label="Seu nome (opcional)" htmlFor="cn">
               <Input id="cn" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} autoComplete="given-name" placeholder="Como podemos te chamar?" />
             </Field>
